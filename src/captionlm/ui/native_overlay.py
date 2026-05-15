@@ -641,6 +641,31 @@ class NativeSubtitleOverlay(QObject):
         history_scroll.setAutohidesScrollers_(True)
         history_scroll.setBorderType_(0)  # NSNoBorder
         history_scroll.setDrawsBackground_(False)
+        # Force overlay-style scroller regardless of system preference.
+        # macOS NSScroller has two styles:
+        #   Legacy (0):  permanently-visible track + thumb that occupy
+        #                space. Track is opaque, colored by the view's
+        #                effectiveAppearance.
+        #   Overlay (1): track is transparent; thumb floats over the
+        #                content and auto-hides when idle.
+        #
+        # The system default depends on:
+        #   - User's "Show scroll bars" preference (Auto / Always)
+        #   - Pointing device (trackpad → overlay, mouse → legacy)
+        # AND on PyObjC version: empirically on Python 3.13 + the PyObjC
+        # bundled into v0.1.0's .app, we got Legacy style by default,
+        # producing a hard white track band against the translucent
+        # overlay window (user feedback 2026-05-16: "白色又出现了…
+        # 整条贯穿历史区域高度"). The clip.setDrawsBackground_(False)
+        # above already kills NSClipView's contribution; this kills
+        # NSScroller's track contribution too.
+        #
+        # Forcing Overlay (1) on this specific NSScrollView decouples
+        # the visual from system prefs + appearance + PyObjC version.
+        # Combined with setAutohidesScrollers_(True), the scrollbar is
+        # invisible until the user actually scrolls — exactly what a
+        # subtitle overlay wants.
+        history_scroll.setScrollerStyle_(1)  # NSScrollerStyleOverlay
         # Document view (history_stack) needs an explicit width binding;
         # without it the NSScrollView's content size is 0 and nothing
         # renders (user feedback: "没有看到历史记录的部分"). Pin width
