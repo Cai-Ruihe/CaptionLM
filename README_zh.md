@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/logo-color.png" alt="CaptionLM" width="128" />
+<img src="assets/banner.png" alt="CaptionLM — macOS 实时双语字幕翻译" width="100%" />
 
 # CaptionLM
 
@@ -30,7 +30,19 @@ CaptionLM 可以捕捉 macOS 上**任意应用**的音频 —— 浏览器、Zoo
 
 ## 🎬 演示
 
-> 截图待补。把你的截图放到 `docs/screenshots/`，会自动显示在这里。
+<div align="center">
+
+<img src="docs/screenshots/overlay-running.png" alt="CaptionLM 双语字幕悬浮窗实时运行" width="100%" />
+
+*双语悬浮字幕在 YouTube 视频上实时运行 — 上方是日文原文，下方是中文翻译*
+
+<br/>
+
+<img src="docs/screenshots/settings-panel.png" alt="CaptionLM 设置面板" width="100%" />
+
+*设置面板 — STT 引擎和翻译器独立选择，输入你自己的 API key*
+
+</div>
 
 ## 🚀 快速开始
 
@@ -38,9 +50,14 @@ CaptionLM 可以捕捉 macOS 上**任意应用**的音频 —— 浏览器、Zoo
 
 1. 从 [Releases](https://github.com/Cai-Ruihe/CaptionLM/releases) 下载最新 `.dmg`
 2. 拖 `CaptionLM.app` 到 `/Applications`
-3. 打开应用，授予 **屏幕录制** 权限（系统设置 → 隐私与安全性 → 屏幕录制 → 勾选 CaptionLM）
-4. 点击菜单栏图标 → **Settings** → 输入 API key（详见 [API 申请](docs/API_SETUP.md)）
-5. 点击 **Start**，然后在任何应用里播放音频
+3. **在终端跑一次**这条命令，清除 macOS Gatekeeper 的隔离标记：
+   ```bash
+   xattr -cr /Applications/CaptionLM.app
+   ```
+   *（因为 CaptionLM 尚未做 Apple Developer ID 签名，详见 [首次启动注意事项](#%EF%B8%8F-首次启动注意事项10-之前)）*
+4. 打开应用，授予 **屏幕录制** 权限（系统设置 → 隐私与安全性 → 屏幕录制 → 勾选 CaptionLM）
+5. 点击菜单栏图标 → **Settings** → 输入 API key（详见 [API 申请](docs/API_SETUP.md)）
+6. 点击 **Start**，然后在任何应用里播放音频
 
 ### 方案二 —— 从源码运行（开发者）
 
@@ -54,6 +71,40 @@ captionlm
 ```
 
 详细安装步骤、Python 配置和故障排查见 [docs/INSTALL.md](docs/INSTALL.md)。
+
+## ⚠️ 首次启动注意事项（1.0 之前）
+
+CaptionLM 目前使用 **ad-hoc 自签名**（不是 Apple Developer ID + 公证，那个需要 $99/年），所以**macOS Gatekeeper 和 TCC 系统会把每次下载、每次升级都当成"未知 app"**。在正式签名之前需要两个一次性的小操作。**这两个步骤都不影响功能**，只是 macOS 的"我能信任这个 app 吗"流程。
+
+### 1. 首次打开时弹 "CaptionLM is damaged and can't be opened"
+
+这个提示**有误导性**——`.app` 实际上**没坏**。macOS 会给所有通过浏览器下载的文件加一个 `com.apple.quarantine` 扩展属性，Gatekeeper 对 ad-hoc 签名的 app 看到这个属性就直接拒绝运行。一条命令解决：
+
+```bash
+xattr -cr /Applications/CaptionLM.app
+```
+
+之后正常双击就行。**每次下载新版只需要做一次。**
+
+### 2. 升级到新版本后，"屏幕录制"权限被重置
+
+把 `/Applications/CaptionLM.app` 换成新版 `.dmg` 之后，macOS 可能会**再次**弹屏幕录制授权对话框（即使你给老版本授权过了）。原因是每次新构建的 ad-hoc 签名都不同，TCC（Apple 的权限数据库）把它当成了一个不同的 app。
+
+**解决方法：**
+
+1. **系统设置 → 隐私与安全性 → 屏幕与系统录音**
+2. 在列表里找到 **CaptionLM**——把开关**关掉**再**重新打开**（或者点 `−` 号删掉旧条目，再点 `+` 号添加新的 `.app`）
+3. **退出 CaptionLM 再重新打开**——新的授权下一次启动生效
+4. 如果你启用了**麦克风**回退，同样的流程也适用于麦克风权限
+
+### 为什么会有这两个临时方案
+
+这两个摩擦点都源于同一个原因：**CaptionLM 暂时没有 Apple Developer ID + 公证**（$99/年 + Apple 的自动恶意软件扫描）。一旦有了正式签名：
+
+- ❌ "Damaged" 警告永远不会出现——Gatekeeper 会认可签名
+- ❌ TCC 不会在升级时重置——签名身份保持一致
+
+Apple Developer ID 签名 + 公证已在 [路线图](#%EF%B8%8F-路线图) 上。在此之前，上面这两条命令就是全部的临时方案。
 
 ## 🔑 API 配置
 
@@ -74,7 +125,11 @@ macOS 的 `.app` 是绿色软件 —— **没有安装/卸载流程**，所谓"�
 1. 退出正在跑的 CaptionLM（菜单栏图标 → Quit，或点 ✕）
 2. 下载新的 `.dmg`
 3. 把新的 `CaptionLM.app` 拖进 `/Applications` → Finder 问 "替换吗？" → **替换**
-4. 重新打开 CaptionLM
+4. 在终端跑 `xattr -cr /Applications/CaptionLM.app` 清掉 Gatekeeper 隔离标记（一次性，详见 [首次启动注意事项](#%EF%B8%8F-首次启动注意事项10-之前)）
+5. 重新授权屏幕录制 — 详见 [首次启动注意事项 #2](#2-升级到新版本后屏幕录制权限被重置)
+6. 重新打开 CaptionLM
+
+> 步骤 4-5 只是在 Apple Developer ID 签名做好之前需要。一旦有正式签名，这两步就自动消失。
 
 你的设置和数据**全部保留**（它们都不在 `.app` 内部）：
 
@@ -91,7 +146,20 @@ rm -rf /Applications/CaptionLM.app
 rm -rf ~/Library/Application\ Support/CaptionLM ~/.captionlm ~/.cache/captionlm
 ```
 
-## 🏗️ 架构
+## 🎯 工作原理
+
+<div align="center">
+
+<img src="assets/poster.png" alt="CaptionLM 工作原理 — 音频捕获、STT、翻译、悬浮字幕" width="100%" />
+
+</div>
+
+CaptionLM 通过 ScreenCaptureKit 截取任意 macOS 应用的音频流（不需要虚拟声卡），喂给你选择的语音识别引擎，把识别出的文本送到你选择的翻译器，最后把双语字幕叠加在屏幕上，永远置顶可拖动。每个环节独立可换，所以你可以按延迟、成本、质量自由组合不同的 provider。
+
+## 🏗️ 架构（技术细节）
+
+<details>
+<summary>展开查看完整数据流</summary>
 
 ```
 ┌────────────────────────────────────────────────────────────────┐
@@ -133,8 +201,11 @@ rm -rf ~/Library/Application\ Support/CaptionLM ~/.captionlm ~/.cache/captionlm
 
 架构细节（utterance 缓冲、partial revision 处理、自动重连）见 [docs/DESIGN.md](docs/DESIGN.md)。
 
+</details>
+
 ## 🛣️ 路线图
 
+- [ ] **Apple Developer ID 签名 + 公证** —— 消除"damaged"警告以及升级时的 TCC 权限重置（见 [首次启动注意事项](#%EF%B8%8F-首次启动注意事项10-之前)）
 - [ ] Windows 支持（用 WASAPI loopback 替代 ScreenCaptureKit）
 - [ ] 翻译后期再润色（retranslation polish）扩展到更多 provider
 - [ ] 用 GitHub Actions 一键构建 `.dmg`
