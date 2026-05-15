@@ -7,6 +7,65 @@ import threading
 import time
 
 
+def _ensure_stdio_writable():
+    """Ensure sys.stdout / sys.stderr can be written to without raising.
+
+    Why this exists (root-caused 2026-05-16):
+
+    When CaptionLM.app is double-clicked from Finder (or launched via
+    `open` / `open -a` without explicit `--stdout / --stderr`), macOS
+    `launchd` connects the GUI process to stdio file descriptors that
+    are either CLOSED or pointed at a fd that immediately rejects writes.
+    Any subsequent `print()` / `sys.stderr.write()` — whether from
+    OUR code (the `[perf] ...` lines in main() below) or from third-
+    party libraries during import (PySide6, urllib3 warnings, etc.) —
+    raises BrokenPipeError / OSError. py2app's launcher binary catches
+    that exception, treats startup as failed, and shows its generic
+    "Launch error" dialog with the actual exception nowhere visible.
+
+    Empirical reproduction:
+    - Finder double-click → Launch error dialog ❌
+    - `open /Applications/CaptionLM.app` → same ❌
+    - `open -a /Applications/CaptionLM.app --stdout F --stderr F` → ✅
+       (--stdout/--stderr supply writable fds, prints succeed)
+    - `Contents/MacOS/CaptionLM` from terminal → ✅
+       (terminal stdio is a writable TTY)
+
+    Fix: at the very top of main(), probe each stdio stream with a
+    no-op write. If the write fails, swap the stream for a sink that
+    silently accepts and discards. This must happen BEFORE any other
+    import or initialization so libraries loaded later inherit the
+    safe stdio.
+
+    Side effects: dev-time `print()` output is unaffected when stdio
+    is genuinely writable (terminal, redirected). Only the broken-fd
+    launchd path is silently no-op'd.
+    """
+    for name in ("stdout", "stderr"):
+        stream = getattr(sys, name, None)
+        if stream is None:
+            # py2app sometimes presents sys.stdout/stderr as None
+            try:
+                setattr(sys, name, open(os.devnull, "w"))
+            except Exception:
+                pass
+            continue
+        try:
+            stream.write("")
+            stream.flush()
+        except (BrokenPipeError, OSError, AttributeError, ValueError):
+            # Unwritable under launchd: replace with a /dev/null sink so
+            # downstream print() / write() calls silently no-op instead
+            # of raising and tearing down Python startup.
+            try:
+                setattr(sys, name, open(os.devnull, "w"))
+            except Exception:
+                # Last-resort fallback: in-memory sink. Grows over time
+                # but at least won't crash. Should never reach this path.
+                import io
+                setattr(sys, name, io.StringIO())
+
+
 def _install_sigterm_handler():
     """Convert SIGTERM into a normal Python exit so atexit handlers fire.
 
@@ -92,6 +151,13 @@ def _fix_qt_plugin_path():
 
 def main():
     """Launch CaptionLM application."""
+    # Step 0 — MUST be first: harden stdio against launchd's closed-fd
+    # behavior. Without this, any print() (including the [perf] lines
+    # below) raises BrokenPipeError when launched via Finder double-click,
+    # producing the py2app generic "Launch error" dialog. See the docstring
+    # on _ensure_stdio_writable for full reproduction notes.
+    _ensure_stdio_writable()
+
     t0 = time.monotonic()
 
     # Install SIGTERM handler EARLY so it's active before any subprocess
