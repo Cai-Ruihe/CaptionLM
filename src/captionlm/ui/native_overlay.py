@@ -650,6 +650,20 @@ class NativeSubtitleOverlay(QObject):
         history_scroll.setDocumentView_(history_stack)
         try:
             clip = history_scroll.contentView()
+            # Defensive: NSClipView (the scroll view's inner viewport) has
+            # its own `drawsBackground` property, independent of the
+            # NSScrollView's. Empirically (2026-05-16): on Python 3.13 +
+            # the PyObjC version py2app bundled into v0.1.0's .app, the
+            # default was True → opaque system white showed through behind
+            # the scrollbar against our translucent overlay window ("白色
+            # 背景好丑" — user feedback). On Python 3.14 + current PyObjC,
+            # the default is False so nothing visible breaks, but relying
+            # on an Apple-side default that quietly varies across SDK /
+            # PyObjC versions is fragile. Set it explicitly so behavior
+            # is consistent regardless of which Python or PyObjC the app
+            # is bundled with (especially after py2app freezes the runtime
+            # at release time).
+            clip.setDrawsBackground_(False)
             history_stack.widthAnchor().constraintEqualToAnchor_(
                 clip.widthAnchor()
             ).setActive_(True)
