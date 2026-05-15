@@ -496,6 +496,19 @@ echo ""
 echo "[6/6] Creating CaptionLM.dmg..."
 DMG_PATH="packaging/dist/CaptionLM.dmg"
 
+# PRIVACY: scrub any log files that ended up inside the .app during
+# testing. When we launch CaptionLM during the build (or the developer
+# tests the .app manually before running create-dmg), the app writes
+# init/session logs to Contents/Resources/lib/logs/. Those logs contain
+# the developer's filesystem paths (e.g. /Users/<username>/...) which
+# would leak to anyone who downloads the .dmg. End users will create
+# their own logs locally; we only need to make sure WE don't ship ours.
+PRE_LOG_COUNT=$(find "$APP_BUNDLE" -path "*/logs/*" -name "*.log*" 2>/dev/null | wc -l | tr -d ' ')
+if [ "$PRE_LOG_COUNT" != "0" ]; then
+    find "$APP_BUNDLE" -path "*/logs/*" -name "*.log*" -delete 2>/dev/null || true
+    echo "  ✓ Wiped $PRE_LOG_COUNT log file(s) from .app (privacy)"
+fi
+
 # Re-stat the app bundle so the final summary reflects any slim savings.
 APP_SIZE=$(du -sh "$APP_BUNDLE" | cut -f1)
 
