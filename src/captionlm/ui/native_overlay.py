@@ -635,37 +635,43 @@ class NativeSubtitleOverlay(QObject):
             content._wrap_fields.append(field)
 
         # Scroll view wraps the history stack.
+        #
+        # Design decision (2026-05-16, after extensive iteration):
+        # we intentionally HIDE the vertical scroller entirely rather
+        # than try to style it. Three previous approaches failed:
+        #   Layer 1: NSClipView.setDrawsBackground_(False) — killed the
+        #            viewport background, but not the scroller track.
+        #   Layer 2: NSScrollView.setScrollerStyle_(NSScrollerStyleOverlay)
+        #            — silently ignored on the PyObjC version py2app
+        #            bundles (worked on dev Python 3.14, failed on
+        #            shipped Python 3.13 .app).
+        #   Layer 3: subclass NSScroller, override
+        #            drawKnobSlotInRect:highlight: as a no-op. Failed
+        #            because modern AppKit (10.7+) routes scroller
+        #            drawing through private NSScrollerImp internals,
+        #            so the public draw method is never invoked.
+        #
+        # User-confirmed empirically across all three layers: the
+        # Legacy-style opaque white track band remained visible on the
+        # shipped .app ("没修好").
+        #
+        # The pragmatic fix: don't display a scroller at all. Users
+        # still scroll via trackpad two-finger swipe, scroll wheel, or
+        # arrow keys — that interaction is preserved by the NSScrollView
+        # itself, independent of whether a visible scroller exists. This
+        # matches the visual conventions of modern chat / streaming UIs
+        # (Slack, Discord, WeChat, Twitter, ChatGPT) which all hide
+        # scrollbars in conversation-style content.
+        #
+        # Trade-off: no visual indicator of how much history is off-
+        # screen. Acceptable for a subtitle overlay where the most
+        # recent line is what matters; older lines are recoverable via
+        # the auto-saved SRT in ~/Documents/CaptionLM/sessions/.
         history_scroll = NSScrollView.alloc().init()
-        history_scroll.setHasVerticalScroller_(True)
+        history_scroll.setHasVerticalScroller_(False)
         history_scroll.setHasHorizontalScroller_(False)
-        history_scroll.setAutohidesScrollers_(True)
         history_scroll.setBorderType_(0)  # NSNoBorder
         history_scroll.setDrawsBackground_(False)
-        # Force overlay-style scroller regardless of system preference.
-        # macOS NSScroller has two styles:
-        #   Legacy (0):  permanently-visible track + thumb that occupy
-        #                space. Track is opaque, colored by the view's
-        #                effectiveAppearance.
-        #   Overlay (1): track is transparent; thumb floats over the
-        #                content and auto-hides when idle.
-        #
-        # The system default depends on:
-        #   - User's "Show scroll bars" preference (Auto / Always)
-        #   - Pointing device (trackpad → overlay, mouse → legacy)
-        # AND on PyObjC version: empirically on Python 3.13 + the PyObjC
-        # bundled into v0.1.0's .app, we got Legacy style by default,
-        # producing a hard white track band against the translucent
-        # overlay window (user feedback 2026-05-16: "白色又出现了…
-        # 整条贯穿历史区域高度"). The clip.setDrawsBackground_(False)
-        # above already kills NSClipView's contribution; this kills
-        # NSScroller's track contribution too.
-        #
-        # Forcing Overlay (1) on this specific NSScrollView decouples
-        # the visual from system prefs + appearance + PyObjC version.
-        # Combined with setAutohidesScrollers_(True), the scrollbar is
-        # invisible until the user actually scrolls — exactly what a
-        # subtitle overlay wants.
-        history_scroll.setScrollerStyle_(1)  # NSScrollerStyleOverlay
         # Document view (history_stack) needs an explicit width binding;
         # without it the NSScrollView's content size is 0 and nothing
         # renders (user feedback: "没有看到历史记录的部分"). Pin width
