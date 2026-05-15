@@ -1,0 +1,105 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "captionlm"
+version = "0.1.0"
+description = "Real-time bilingual subtitle translation for any audio on macOS — Gemini, Qwen, Google Cloud STT"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [
+    { name = "CaptionLM contributors" },
+]
+keywords = [
+    "subtitle", "translation", "real-time", "caption", "live", "stt",
+    "speech-to-text", "gemini", "qwen", "google-cloud-speech", "macos",
+    "screencapturekit", "overlay",
+]
+# NOTE: per PEP 639 (setuptools >= 80), a classifier-form License must
+# NOT be set alongside the new SPDX `license = "MIT"` field. We keep
+# the SPDX form (which is the modern preferred way).
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: End Users/Desktop",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Multimedia :: Sound/Audio :: Speech",
+    "Topic :: Text Processing :: Linguistic",
+]
+
+dependencies = [
+    "PySide6>=6.6",
+    "numpy>=1.24",
+    "sounddevice>=0.4",
+    "deep-translator>=1.11",
+    "tomli>=2.0; python_version < '3.12'",
+    "tomli-w>=1.0",
+]
+
+[project.optional-dependencies]
+# Core providers — install with `pip install captionlm[providers]`.
+# Each line provides one of the engines documented in README.
+providers = [
+    # Google Cloud Speech-to-Text streaming (best ASR quality)
+    "google-cloud-speech>=2.20",
+    # Gemini translator (recommended default for translation)
+    "google-genai>=1.0",
+    # Anthropic Claude translator
+    "anthropic>=0.20",
+    # OpenAI-compatible client used by Qwen-MT (DashScope intl endpoint)
+    "openai>=1.0",
+    # Qwen ASR / LiveTranslate WebSocket
+    "websockets>=12.0",
+]
+
+# Local Whisper STT (heavyweight; only if you want offline transcription)
+whisper = [
+    "faster-whisper>=1.0",
+]
+
+# macOS-native frameworks for ScreenCaptureKit + SpeechAnalyzer
+macos = [
+    "pyobjc-framework-AVFoundation>=10.0",
+    "pyobjc-framework-Speech>=10.0",
+    "pyobjc-framework-ScreenCaptureKit>=10.0",
+    "pyobjc-framework-CoreMedia>=10.0",
+    "pyobjc-framework-Cocoa>=10.0",
+]
+
+# Everything (recommended for end users)
+all = [
+    "captionlm[providers,macos]",
+]
+
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+    "ruff>=0.1",
+    "py2app>=0.28",
+]
+
+[project.scripts]
+captionlm = "captionlm.__main__:main"
+
+[project.urls]
+Homepage = "https://github.com/Cai-Ruihe/CaptionLM"
+Repository = "https://github.com/Cai-Ruihe/CaptionLM"
+Issues = "https://github.com/Cai-Ruihe/CaptionLM/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/captionlm"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
